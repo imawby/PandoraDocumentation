@@ -3,7 +3,7 @@ What Is Pandora?
 
 Pandora is a multi-algorithm reconstruction framework used to solve pattern recognition problems in high energy physics. It has over 100 different algorithms that can be applied in a range of orders to allow users to create custom reconstruction for individual needs. Each step is small, but making sure every one is correct before moving onto the next allows us to get to the correct answer with minimal opportunity for mistakes. It also means we can develop certain areas (e.g. vertex positioning) and slot them right back in once they've been improved.
 
-As it is a dependency free library, Pandora has been used for reconstrction in a number of liquid argon detector particle physics experiments, namely DUNE (Near and Far Detectors), SBND, MicroBooNE, ICARUS, and some linear collidor experiments (ILC, CLIC, FCC-ee). We make careful use of both traditional clustering as well as novel AI/ML approaches.
+As it is a dependency free library, Pandora has been used for reconstrction in a number of liquid argon detector particle physics experiments, namely DUNE (Near and Far Detectors), SBND, MicroBooNE, ICARUS, and some linear collider experiments (ILC, CLIC, FCC-ee). We make careful use of both traditional clustering as well as novel AI/ML approaches.
 
 The Event Data Model uses classes to represent the input building blocks (CaloHits, Tracks, MC Particles) and then uses these to created higher-level structures (Clusters, Verticies, Particles). That is to say, it takes in fairly basic data and outputs reconstructed particles to be used for analysis!
 
