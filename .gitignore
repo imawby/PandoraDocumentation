@@ -1,0 +1,6 @@
+# Ignore build artifacts
+doxygen/html/
+docs/build/
+
+# Ignore temporary files
+.DS_Store
