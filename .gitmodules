@@ -1,0 +1,15 @@
+[submodule "extern/LArContent"]
+	path = extern/LArContent
+	url = https://github.com/PandoraPFA/LArContent.git
+[submodule "extern/PandoraSDK"]
+	path = extern/PandoraSDK
+	url = https://github.com/PandoraPFA/PandoraSDK.git
+[submodule "extern/PandoraMonitoring"]
+	path = extern/PandoraMonitoring
+	url = https://github.com/PandoraPFA/PandoraMonitoring.git
+[submodule "extern/LArReco"]
+	path = extern/LArReco
+	url = https://github.com/PandoraPFA/LArReco.git
+[submodule "extern/LArRecoND"]
+	path = extern/LArRecoND
+	url = https://github.com/PandoraPFA/LArRecoND.git
