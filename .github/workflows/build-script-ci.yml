@@ -14,16 +14,30 @@ on:
   workflow_dispatch:
 
 jobs:
-  full-build-linux:
-    name: Full Build (Linux)
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
+  build-script:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux Build
+            os: ubuntu-latest
+            timeout: 240
+          - name: macOS Build
+            os: macos-latest
+            timeout: 240
+
+    env:
+      ML_CACHE_PREFIX: pandora-ml-data
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install compiler and required tools
+      - name: Install compiler and required tools (Linux)
+        if: runner.os == 'Linux'
         run: |
           set -euxo pipefail
           sudo apt-get update
@@ -36,11 +50,27 @@ jobs:
             python3 \
             tar
 
+      - name: Ensure required tools (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          set -euxo pipefail
+          if ! command -v cmake >/dev/null 2>&1; then
+            brew install cmake
+          fi
+          if ! command -v ninja >/dev/null 2>&1; then
+            brew install ninja
+          fi
+
       - name: Verify toolchain
         run: |
           set -euxo pipefail
-          gcc --version
-          g++ --version
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            gcc --version
+            g++ --version
+          else
+            clang --version
+            clang++ --version
+          fi
           cmake --version
           ninja --version
           git --version
@@ -48,10 +78,52 @@ jobs:
           python3 --version
           tar --version
 
-      - name: Run full build script
+      - name: Prepare output directory
         run: |
           set -euxo pipefail
           OUT_DIR="$RUNNER_TEMP/pandora-full-build"
           rm -rf "$OUT_DIR"
           mkdir -p "$OUT_DIR"
+
+      - name: Bootstrap sources (clone only)
+        run: |
+          set -euxo pipefail
+          OUT_DIR="$RUNNER_TEMP/pandora-full-build"
+          python3 scripts/build_pandora.py -o "$OUT_DIR" --clone_only
+
+      - name: Compute ML cache key
+        id: ml_cache_key
+        run: |
+          set -euxo pipefail
+          OUT_DIR="$RUNNER_TEMP/pandora-full-build"
+          DL_SCRIPT="$OUT_DIR/LArMachineLearningData/download.sh"
+          HASH="$(shasum -a 256 "$DL_SCRIPT" | awk '{print $1}')"
+          echo "key=${{ env.ML_CACHE_PREFIX }}-dune-${HASH}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore ML data cache
+        id: ml_cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ${{ runner.temp }}/pandora-full-build/LArMachineLearningData/PandoraMVAData
+            ${{ runner.temp }}/pandora-full-build/LArMachineLearningData/PandoraMVAs
+            ${{ runner.temp }}/pandora-full-build/LArMachineLearningData/PandoraNetworkData
+          key: ${{ steps.ml_cache_key.outputs.key }}
+          restore-keys: |
+            ${{ env.ML_CACHE_PREFIX }}-dune-
+
+      - name: Run full build script
+        run: |
+          set -euxo pipefail
+          OUT_DIR="$RUNNER_TEMP/pandora-full-build"
           python3 scripts/build_pandora.py -o "$OUT_DIR"
+
+      - name: Save ML data cache
+        if: steps.ml_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ${{ runner.temp }}/pandora-full-build/LArMachineLearningData/PandoraMVAData
+            ${{ runner.temp }}/pandora-full-build/LArMachineLearningData/PandoraMVAs
+            ${{ runner.temp }}/pandora-full-build/LArMachineLearningData/PandoraNetworkData
+          key: ${{ steps.ml_cache_key.outputs.key }}
