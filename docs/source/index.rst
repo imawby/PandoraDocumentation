@@ -23,5 +23,11 @@ documentation for details.
    PandoraND
    PandoraMetrics
    Tutorial
-   Doxygen <https://crossr.github.io/PandoraDocumentation/dev/>
+..
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Development
+
+   Doxygen API Reference <https://crossr.github.io/PandoraDocumentation/dev/>
 ..
