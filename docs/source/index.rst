@@ -13,7 +13,7 @@ documentation for details.
 
 .. toctree::
    :maxdepth: 1
-              
+
    WhatIsPandora
    RecentDevelopments
    StandalonePandora
@@ -23,8 +23,5 @@ documentation for details.
    PandoraND
    PandoraMetrics
    Tutorial
+   Doxygen <https://crossr.github.io/PandoraDocumentation/dev/>
 ..
-
-
-
-
