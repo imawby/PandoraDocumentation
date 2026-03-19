@@ -14,6 +14,15 @@ import sys
 
 from groups import detect_group, detect_subgroup, get_module_relative_path
 
+HEADER_EXTENSIONS = {".h", ".hh", ".hpp", ".hxx"}
+
+
+def wrap_with_addtogroup(text: str, group: str, after_pos: int) -> str:
+    """Wrap file content after after_pos with \\addtogroup ... @{ ... @}."""
+    open_tag = f"\n/** @addtogroup {group}\n *  @{{ */\n"
+    close_tag = "\n/** @} */\n"
+    return text[:after_pos] + open_tag + text[after_pos:] + close_tag
+
 
 def has_ingroup(text: str) -> bool:
     """
@@ -88,6 +97,9 @@ def main() -> int:
     except OSError:
         return 1
 
+    ext = os.path.splitext(input_file)[1].lower()
+    is_header = ext in HEADER_EXTENSIONS
+
     abs_input = os.path.abspath(input_file)
     group = detect_group(abs_input)
     subgroup = detect_subgroup(abs_input)
@@ -105,6 +117,11 @@ def main() -> int:
             original, target_group, file_label or os.path.basename(input_file)
         )
         if updated is not None:
+            if is_header:
+                file_block_pattern = re.compile(r"/\*\*.*?(?:\\|@)file\b.*?\*/", re.DOTALL)
+                m = file_block_pattern.search(updated)
+                if m:
+                    updated = wrap_with_addtogroup(updated, target_group, m.end())
             sys.stdout.write(updated)
             return 0
 
@@ -112,20 +129,28 @@ def main() -> int:
         # File has no \file block but does declare a group: normalize that group.
         ingroup_pattern = re.compile(r"((?:\\|@)ingroup)\s+\w+")
         updated = ingroup_pattern.sub(rf"\1 {target_group}", original, count=1)
+        if is_header:
+            ingroup_block_pattern = re.compile(r"/\*\*.*?(?:\\|@)ingroup\b.*?\*/", re.DOTALL)
+            m = ingroup_block_pattern.search(updated)
+            if m:
+                updated = wrap_with_addtogroup(updated, target_group, m.end())
         sys.stdout.write(updated)
         return 0
 
-    injected = "".join(
-        [
-            "/**\n",
-            f" * \\file {file_label or os.path.basename(input_file)}\n",
-            f" * \\ingroup {target_group}\n",
-            " */\n",
-        ]
+    file_block = (
+        "/**\n"
+        f" * \\file {file_label or os.path.basename(input_file)}\n"
+        f" * \\ingroup {target_group}\n"
+        " */\n"
     )
-
-    sys.stdout.write(injected)
-    sys.stdout.write(original)
+    if is_header:
+        sys.stdout.write(file_block)
+        sys.stdout.write(f"\n/** @addtogroup {target_group}\n *  @{{ */\n")
+        sys.stdout.write(original)
+        sys.stdout.write("\n/** @} */\n")
+    else:
+        sys.stdout.write(file_block)
+        sys.stdout.write(original)
     return 0
 
 

@@ -27,8 +27,10 @@ SUBGROUP_ROOTS: Dict[str, list[str]] = {
     "LArRecoND": ["include", "src"],
 }
 
-# Depth of subdirectories to create as subgroups (e.g., 1 = immediate children)
-SUBGROUP_DEPTH = 2
+# Modules where each SUBGROUP_ROOT entry is itself exposed as a named subgroup
+# (rather than being a silent scan root). The root dirs become intermediate nodes
+# in the group hierarchy between the module and its subdirectories.
+SUBGROUP_ROOT_AS_GROUP: set[str] = {"LArContent"}
 
 # Optional path filters for each group, to format the display path relative to a
 # specific subfolder within the module. I.e. PandoraSDK/src/Api/File.h would
@@ -109,21 +111,32 @@ def discover_subgroups(extern_dir: str = "extern") -> Dict[str, Dict[str, str]]:
             if not root_path.exists():
                 continue
 
-            # Scan nested directories up to SUBGROUP_DEPTH.
-            for item in sorted(root_path.rglob("*")):
-                if not item.is_dir():
-                    continue
-
-                rel_parts = list(item.relative_to(root_path).parts)
-                if not rel_parts or len(rel_parts) > SUBGROUP_DEPTH:
-                    continue
-
-                if any(part.startswith(".") or part.startswith("_") for part in rel_parts):
-                    continue
-
-                rel_name = "/".join(rel_parts)
-                rel_id = subgroup_id(module_name, rel_parts)
-                subgroups[rel_id] = rel_name
+            if module_name in SUBGROUP_ROOT_AS_GROUP:
+                # The root_dir itself becomes a subgroup under the module.
+                root_parts = [root_dir]
+                subgroups[subgroup_id(module_name, root_parts)] = root_dir
+                # All children are prefixed with root_dir so they nest under it.
+                for item in sorted(root_path.rglob("*")):
+                    if not item.is_dir():
+                        continue
+                    rel_parts = list(item.relative_to(root_path).parts)
+                    if not rel_parts:
+                        continue
+                    if any(part.startswith(".") or part.startswith("_") for part in rel_parts):
+                        continue
+                    full_parts = root_parts + rel_parts
+                    subgroups[subgroup_id(module_name, full_parts)] = "/".join(full_parts)
+            else:
+                # Root dir is a silent scan root; its children appear directly under the module.
+                for item in sorted(root_path.rglob("*")):
+                    if not item.is_dir():
+                        continue
+                    rel_parts = list(item.relative_to(root_path).parts)
+                    if not rel_parts:
+                        continue
+                    if any(part.startswith(".") or part.startswith("_") for part in rel_parts):
+                        continue
+                    subgroups[subgroup_id(module_name, rel_parts)] = "/".join(rel_parts)
 
         all_subgroups[module_name] = subgroups
 
@@ -173,19 +186,38 @@ def detect_subgroup(file_path: str) -> Optional[str]:
         if idx >= 0:
             after_root = path_norm[idx + len(root_pattern) :].lstrip("/")
             parts = [part for part in after_root.split("/") if part]
-            if len(parts) < 2:
-                continue
 
-            directory_parts = parts[:-1]
-            max_depth = min(len(directory_parts), SUBGROUP_DEPTH)
+            if group in SUBGROUP_ROOT_AS_GROUP:
+                # The root_dir itself is a valid subgroup (score 1).
+                root_id = subgroup_id(group, [root_dir])
+                actual_root_id = subgroup_lookup.get(root_id.lower())
+                if actual_root_id is not None:
+                    if best_match is None or 1 > best_match[0]:
+                        best_match = (1, actual_root_id)
 
-            for depth in range(1, max_depth + 1):
-                candidate_parts = directory_parts[:depth]
-                candidate_id = subgroup_id(group, candidate_parts)
-                actual_id = subgroup_lookup.get(candidate_id.lower())
-                if actual_id is not None:
-                    if best_match is None or depth > best_match[0]:
-                        best_match = (depth, actual_id)
+                # Deeper matches: root_dir + subdirectory parts (score = depth + 1).
+                if len(parts) >= 2:
+                    directory_parts = parts[:-1]
+                    for depth in range(1, len(directory_parts) + 1):
+                        candidate_parts = [root_dir] + directory_parts[:depth]
+                        candidate_id = subgroup_id(group, candidate_parts)
+                        actual_id = subgroup_lookup.get(candidate_id.lower())
+                        if actual_id is not None:
+                            score = depth + 1
+                            if best_match is None or score > best_match[0]:
+                                best_match = (score, actual_id)
+            else:
+                if len(parts) < 2:
+                    continue
+
+                directory_parts = parts[:-1]
+                for depth in range(1, len(directory_parts) + 1):
+                    candidate_parts = directory_parts[:depth]
+                    candidate_id = subgroup_id(group, candidate_parts)
+                    actual_id = subgroup_lookup.get(candidate_id.lower())
+                    if actual_id is not None:
+                        if best_match is None or depth > best_match[0]:
+                            best_match = (depth, actual_id)
 
     return best_match[1] if best_match is not None else None
 
