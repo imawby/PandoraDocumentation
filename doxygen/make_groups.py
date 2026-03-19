@@ -8,7 +8,7 @@
 from pathlib import Path
 import sys
 
-from groups import discover_groups, discover_subgroups, resolve_extern_dir
+from groups import discover_groups, discover_subgroups, resolve_extern_dir, subgroup_id
 
 def generate_dox() -> int:
     """Generate ModuleGroups.dox with top-level and nested subgroups."""
@@ -27,9 +27,28 @@ def generate_dox() -> int:
     # Generate subgroups nested under their parent groups
     for module_name in sorted(groups.keys()):
         if module_name in subgroups:
-            for subgroup_id, subgroup_path in sorted(subgroups[module_name].items()):
-                lines.append(f" * \\defgroup {subgroup_id} {module_name}/{subgroup_path}")
-                lines.append(f" * \\ingroup {module_name}")
+            items = sorted(
+                subgroups[module_name].items(),
+                key=lambda item: (item[1].count("/"), item[1].lower()),
+            )
+            for subgroup_name, subgroup_path in items:
+                parent = module_name
+                parts = [part for part in subgroup_path.split("/") if part]
+                if len(parts) > 1:
+                    parent = subgroup_id(module_name, parts[:-1])
+
+                # The label is just the last part of the path, which is usually
+                # the most descriptive. Otherwise we could end up with the group
+                # being LArContent/LArThreeDReco/LArThreeDBase...but part
+                # of the LArContent + LArContent/LArThreeDReco groups...which is
+                # very redundant.
+                #
+                # Instead, just the last part, so we end up with a LArContent group,
+                # then a LArThreeDReco subgroup, and then a LArThreeDBase
+                # subgroup nested inside that.
+                label = parts[-1]
+                lines.append(f" * \\defgroup {subgroup_name} {label}")
+                lines.append(f" * \\ingroup {parent}")
                 lines.append(" *")
 
     lines.append(" */")

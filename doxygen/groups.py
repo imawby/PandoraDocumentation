@@ -151,7 +151,8 @@ def detect_subgroup(file_path: str) -> Optional[str]:
     Returns:
         Subgroup ID like "LArContent_LArThreeDReco", or None.
     """
-    norm = file_path.replace("\\", "/").lower()
+    path_norm = file_path.replace("\\", "/")
+    norm = path_norm.lower()
     group = detect_group(file_path)
 
     if not group:
@@ -161,6 +162,8 @@ def detect_subgroup(file_path: str) -> Optional[str]:
     if group not in subgroups:
         return None
 
+    subgroup_lookup = {name.lower(): name for name in subgroups[group].keys()}
+
     # Try to match subdirectories and pick the deepest discovered subgroup.
     best_match: Optional[tuple[int, str]] = None
     roots = SUBGROUP_ROOTS.get(group, [])
@@ -168,7 +171,7 @@ def detect_subgroup(file_path: str) -> Optional[str]:
         root_pattern = f"/{root_dir.lower()}/"
         idx = norm.find(root_pattern)
         if idx >= 0:
-            after_root = norm[idx + len(root_pattern) :].lstrip("/")
+            after_root = path_norm[idx + len(root_pattern) :].lstrip("/")
             parts = [part for part in after_root.split("/") if part]
             if len(parts) < 2:
                 continue
@@ -179,9 +182,10 @@ def detect_subgroup(file_path: str) -> Optional[str]:
             for depth in range(1, max_depth + 1):
                 candidate_parts = directory_parts[:depth]
                 candidate_id = subgroup_id(group, candidate_parts)
-                if candidate_id in subgroups[group]:
+                actual_id = subgroup_lookup.get(candidate_id.lower())
+                if actual_id is not None:
                     if best_match is None or depth > best_match[0]:
-                        best_match = (depth, candidate_id)
+                        best_match = (depth, actual_id)
 
     return best_match[1] if best_match is not None else None
 

@@ -3,10 +3,10 @@
 # Helper script to assign Doxygen input files to module groups/subgroups based
 # on file path.
 #
-# I.e. We make sure LArContent/** files are in the LArContent group, etc. This
-# is done by inserting an \ingroup line into the first doc block containing a
-# \file command, or by injecting a new doc block if no such block exists. If the
-# file already contains an \ingroup command, it is left unchanged.
+# I.e. We make sure LArContent/** files are in the right module/subgroup.
+# This is done by normalizing the first doc block containing a \file command,
+# or by injecting a new doc block if no such block exists. Existing \ingroup
+# commands are rewritten to the detected target group.
 
 import os
 import re
@@ -109,8 +109,10 @@ def main() -> int:
             return 0
 
     if not needs_ingroup:
-        # File already controls its group and has no \file command: keep as-is.
-        sys.stdout.write(original)
+        # File has no \file block but does declare a group: normalize that group.
+        ingroup_pattern = re.compile(r"((?:\\|@)ingroup)\s+\w+")
+        updated = ingroup_pattern.sub(rf"\1 {target_group}", original, count=1)
+        sys.stdout.write(updated)
         return 0
 
     injected = "".join(
