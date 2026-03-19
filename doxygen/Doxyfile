@@ -1233,11 +1233,7 @@ INPUT_FILTER           =
 FILTER_PATTERNS        = *.h="python3 ./doxygen_group_filter.py" \
                          *.hh="python3 ./doxygen_group_filter.py" \
                          *.hpp="python3 ./doxygen_group_filter.py" \
-                         *.hxx="python3 ./doxygen_group_filter.py" \
-                         *.c="python3 ./doxygen_group_filter.py" \
-                         *.cc="python3 ./doxygen_group_filter.py" \
-                         *.cpp="python3 ./doxygen_group_filter.py" \
-                         *.cxx="python3 ./doxygen_group_filter.py"
+                         *.hxx="python3 ./doxygen_group_filter.py"
 
 # If the FILTER_SOURCE_FILES tag is set to YES, the input filter (if set using
 # INPUT_FILTER) will also be used to filter the input files that are used for

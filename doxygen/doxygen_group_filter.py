@@ -3,10 +3,13 @@
 # Helper script to assign Doxygen input files to module groups/subgroups based
 # on file path.
 #
-# I.e. We make sure LArContent/** files are in the right module/subgroup.
-# This is done by normalizing the first doc block containing a \file command,
-# or by injecting a new doc block if no such block exists. Existing \ingroup
-# commands are rewritten to the detected target group.
+# For header files: normalises the \file path label and wraps the file content
+# with @addtogroup ... @{ ... @}, so that classes/structs/functions appear as
+# members of the correct group. The \file block itself does NOT get an \ingroup
+# tag, so the file page is never listed as a group member -- only its contents.
+#
+# For source files (.cc, .cpp, etc.): passed through unchanged. Their classes
+# are already documented in headers and will appear there via @addtogroup.
 
 import os
 import re
@@ -24,65 +27,34 @@ def wrap_with_addtogroup(text: str, group: str, after_pos: int) -> str:
     return text[:after_pos] + open_tag + text[after_pos:] + close_tag
 
 
-def has_ingroup(text: str) -> bool:
-    """
-    Check if the text contains an \\ingroup or @ingroup command.
-    We don't want/need to modify files that already specify a group.
-
-    Args:
-        text: The content of a Doxygen input file as a string.
-
-    Returns:
-        True if an \\ingroup or @ingroup command is found, False otherwise.
-    """
-    return re.search(r"(?:\\|@)ingroup\s+\w+", text) is not None
-
-
 def has_file_command(text: str) -> bool:
-    """
-    Check if the text contains a \\file or @file command.
-
-    Args:
-        text: The content of a Doxygen input file as a string.
-
-    Returns:
-        True if a \\file or @file command is found, False otherwise.
-    """
+    """Return True if the text contains a \\file or @file command."""
     return re.search(r"(?:\\|@)file\b", text) is not None
 
 
-def update_file_block(text: str, group: str, file_label: str) -> str | None:
+def normalize_file_block(text: str, file_label: str) -> tuple[str, int] | None:
     """
-    Normalize the first \\file/@file block and enforce \\ingroup.
+    Normalize the \\file path in the first file doc block and strip any
+    \\ingroup from it. Group membership is handled exclusively by @addtogroup.
 
-    Args:
-        text: The content of a Doxygen input file as a string.
-        group: The group name to insert.
-        file_label: The label/path to use for the \\file command.
     Returns:
-        The updated text, or None if no file block is found.
+        (updated_text, end_pos_of_block) or None if no file block is found.
     """
     pattern = re.compile(r"/\*\*.*?(?:\\|@)file\b.*?\*/", re.DOTALL)
     match = pattern.search(text)
-
     if not match:
         return None
 
     block = match.group(0)
-    file_cmd_pattern = re.compile(r"((?:\\|@)file)\b[^\n\r]*")
-    updated_block = file_cmd_pattern.sub(rf"\1 {file_label}", block, count=1)
+    # Normalise the \file path.
+    block = re.compile(r"((?:\\|@)file)\b[^\n\r]*").sub(rf"\1 {file_label}", block, count=1)
+    # Remove any existing \ingroup line -- we don't want the file page itself
+    # listed as a group member.
+    block = re.sub(r"\n[ \t]*\*[ \t]*(?:\\|@)ingroup\b[^\n]*", "", block)
 
-    ingroup_pattern = re.compile(r"((?:\\|@)ingroup)\s+\w+")
-    if ingroup_pattern.search(updated_block):
-        updated_block = ingroup_pattern.sub(rf"\1 {group}", updated_block, count=1)
-    elif "\n *" in updated_block:
-        updated_block = updated_block.replace(
-            "\n */", f"\n * \\ingroup {group}\n */", 1
-        )
-    else:
-        updated_block = updated_block.replace("*/", f" \\ingroup {group} */", 1)
-
-    return text[: match.start()] + updated_block + text[match.end() :]
+    updated = text[: match.start()] + block + text[match.end() :]
+    new_end = match.start() + len(block)
+    return updated, new_end
 
 
 def main() -> int:
@@ -98,7 +70,12 @@ def main() -> int:
         return 1
 
     ext = os.path.splitext(input_file)[1].lower()
-    is_header = ext in HEADER_EXTENSIONS
+
+    # Source files pass through unchanged: their classes are documented in
+    # headers and will be picked up there via @addtogroup.
+    if ext not in HEADER_EXTENSIONS:
+        sys.stdout.write(original)
+        return 0
 
     abs_input = os.path.abspath(input_file)
     group = detect_group(abs_input)
@@ -110,47 +87,21 @@ def main() -> int:
         return 0
 
     target_group = subgroup if subgroup else group
-    needs_ingroup = not has_ingroup(original)
 
     if has_file_command(original):
-        updated = update_file_block(
-            original, target_group, file_label or os.path.basename(input_file)
-        )
-        if updated is not None:
-            if is_header:
-                file_block_pattern = re.compile(r"/\*\*.*?(?:\\|@)file\b.*?\*/", re.DOTALL)
-                m = file_block_pattern.search(updated)
-                if m:
-                    updated = wrap_with_addtogroup(updated, target_group, m.end())
+        result = normalize_file_block(original, file_label or os.path.basename(input_file))
+        if result is not None:
+            updated, block_end = result
+            updated = wrap_with_addtogroup(updated, target_group, block_end)
             sys.stdout.write(updated)
             return 0
 
-    if not needs_ingroup:
-        # File has no \file block but does declare a group: normalize that group.
-        ingroup_pattern = re.compile(r"((?:\\|@)ingroup)\s+\w+")
-        updated = ingroup_pattern.sub(rf"\1 {target_group}", original, count=1)
-        if is_header:
-            ingroup_block_pattern = re.compile(r"/\*\*.*?(?:\\|@)ingroup\b.*?\*/", re.DOTALL)
-            m = ingroup_block_pattern.search(updated)
-            if m:
-                updated = wrap_with_addtogroup(updated, target_group, m.end())
-        sys.stdout.write(updated)
-        return 0
-
-    file_block = (
-        "/**\n"
-        f" * \\file {file_label or os.path.basename(input_file)}\n"
-        f" * \\ingroup {target_group}\n"
-        " */\n"
-    )
-    if is_header:
-        sys.stdout.write(file_block)
-        sys.stdout.write(f"\n/** @addtogroup {target_group}\n *  @{{ */\n")
-        sys.stdout.write(original)
-        sys.stdout.write("\n/** @} */\n")
-    else:
-        sys.stdout.write(file_block)
-        sys.stdout.write(original)
+    # No \file block: inject a minimal one, then wrap the rest.
+    file_block = f"/**\n * \\file {file_label or os.path.basename(input_file)}\n */\n"
+    sys.stdout.write(file_block)
+    sys.stdout.write(f"\n/** @addtogroup {target_group}\n *  @{{ */\n")
+    sys.stdout.write(original)
+    sys.stdout.write("\n/** @} */\n")
     return 0
 
 
