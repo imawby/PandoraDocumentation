@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # High-level build script for all of Pandora.
 #
@@ -41,11 +41,9 @@ LARRECOND = f"{BASE_REPO}/LArRecoND.git"
 EIGEN = "https://gitlab.com/libeigen/eigen/-/archive/3.4.0/eigen-3.4.0.tar.gz"
 
 # Versions...
-LIBTORCH_VERSION = "v2.2.0"
 CXX_STANDARD = "17"
 
 # LibTorch / DL Specific
-TORCH = "https://github.com/pytorch/pytorch.git"
 LINUX_URL = "https://download.pytorch.org/libtorch/cpu/libtorch-cxx11-abi-shared-with-deps-2.5.0%2Bcpu.zip"
 MAC_URL = "https://download.pytorch.org/libtorch/cpu/libtorch-macos-1.9.0.zip"
 MAC_ARM_URL = "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-2.3.1.zip"
@@ -195,7 +193,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "-M",
         "--build_monitoring",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
         help="Enable monitoring support in Pandora (on by default).",
         default=True,
     )
@@ -229,7 +227,7 @@ def parse_args() -> argparse.Namespace:
         "-I",
         "--prebuilt_libtorch",
         help="Path to a pre-built LibTorch folder",
-        default=False,
+        default="",
     )
     parser.add_argument(
         "-L",
@@ -250,7 +248,7 @@ def parse_args() -> argparse.Namespace:
         "-s",
         "--sparse_path",
         help="Path to TorchSparse/TorchScatter build to use",
-        default=False,
+        default="",
     )
 
     # Add an optional ROOT path, if its not being picked up from the environment
@@ -289,6 +287,17 @@ def parse_args() -> argparse.Namespace:
         sys.exit(1)
 
     args = parser.parse_args()
+
+    # Validate argument combinations for a predictable user experience.
+    torch_source_count = int(bool(args.download_libtorch)) + int(bool(args.prebuilt_libtorch)) + int(bool(args.larsoft_libtorch))
+    if torch_source_count > 1:
+        parser.error("Choose only one LibTorch source: --download-libtorch, --prebuilt-libtorch, or --larsoft-libtorch.")
+
+    if args.sparse_support and args.sparse_path:
+        parser.error("Use either --sparse-support (build sparse deps) or --sparse-path (use existing install), not both.")
+
+    if (args.sparse_support or args.sparse_path) and torch_source_count == 0:
+        parser.error("Sparse options require a LibTorch source. Set one of --download-libtorch, --prebuilt-libtorch, or --larsoft-libtorch.")
 
     if args.build_near_detector:
         args.download_data = "dunend"
@@ -341,6 +350,7 @@ def get_code(args) -> None:
         args,
         "Eigen3",
         f"curl -L {EIGEN} --output {args.output}/eigen.tar.gz",
+        cwd=args.output,
     )
 
     # Work out if we need to get some form of LibTorch...
@@ -350,6 +360,7 @@ def get_code(args) -> None:
             args,
             "libtorch",
             f"curl -L {PRE_BUILT_LIBTORCH} --output {args.output}/libtorch.zip",
+            cwd=args.output,
         )
     elif args.prebuilt_libtorch:
         info(f"Using pre-built LibTorch from: {args.prebuilt_libtorch}")
@@ -603,6 +614,13 @@ def build_sparse_dependencies(args, sparse_commands: dict[str, str]) -> None:
     if not args.sparse_support:
         return
 
+    missing = [name for name in ("pytorch_sparse", "pytorch_scatter", "pytorch_cluster") if name not in sparse_commands]
+    if missing:
+        error(
+            "Sparse build commands are missing. Check LibTorch options and sparse configuration."
+        )
+        sys.exit(1)
+
     build_repo(args, "pytorch_sparse", sparse_commands["pytorch_sparse"])
     build_repo(args, "pytorch_scatter", sparse_commands["pytorch_scatter"])
     build_repo(args, "pytorch_cluster", sparse_commands["pytorch_cluster"])
@@ -674,6 +692,7 @@ def build_code(args) -> None:
 def main() -> None:
     args = parse_args()
     cwd = os.getcwd()
+    changed_to_output = False
 
     # Check we have the required packages installed
     for package, command in REQUIRED_PACKAGES:
@@ -693,8 +712,15 @@ def main() -> None:
         else:
             os.makedirs(args.output)
 
-    # Change to the output directory
-    os.chdir(args.output)
+    # Change to the output directory when it exists.
+    if os.path.exists(args.output):
+        os.chdir(args.output)
+        changed_to_output = True
+    elif args.dry_run:
+        info("DRY-RUN: output directory does not exist yet, skipping chdir")
+    else:
+        error(f"Output directory does not exist: {args.output}")
+        sys.exit(1)
 
     # Get the code from the repositories...
     info_banner("Cloning required repositories...")
@@ -707,7 +733,8 @@ def main() -> None:
     info_banner("Build complete...")
 
     # Return to the original directory
-    os.chdir(cwd)
+    if changed_to_output:
+        os.chdir(cwd)
 
     # Everything is done!
     # Alert the user on the next steps...
