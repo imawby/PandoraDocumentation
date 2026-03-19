@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Helper script to assign Doxygen input files to top-level module groups based
+# Helper script to assign Doxygen input files to module groups/subgroups based
 # on file path.
 #
 # I.e. We make sure LArContent/** files are in the LArContent group, etc. This
@@ -12,64 +12,7 @@ import os
 import re
 import sys
 
-
-def detect_group(path: str) -> str | None:
-    """
-    Detect the project group based on the file path.
-
-    Args:
-        path: A file path string that may contain backslashes or forward slashes.
-
-    Returns:
-        A string representing the detected group name, or None if no group is detected.
-    """
-    norm = path.replace("\\", "/").lower()
-
-    if "/larcontent/" in norm:
-        return "LArContent"
-    if "/pandoramonitoring/" in norm:
-        return "PandoraMonitoring"
-    if "/pandorasdk/" in norm:
-        return "PandoraSDK"
-    if "/larreco/" in norm:
-        return "LArReco"
-    if "/larrecond/" in norm:
-        return "LArRecoND"
-
-    return None
-
-
-def module_relative_path(path: str) -> str | None:
-    """
-    Compute a display path for \file relative to the module input root.
-
-    Examples:
-        .../LArContent/larpandoracontent/LArCheating/Foo.h ->
-            LArContent/LArCheating/Foo.h
-        .../PandoraSDK/include/Api/Foo.h ->
-            PandoraSDK/include/Api/Foo.h
-    """
-    norm = path.replace("\\", "/")
-    lower = norm.lower()
-
-    markers = [
-        ("/larcontent/larpandoracontent/", "LArContent/"),
-        ("/larcontent/larpandoradlcontent/", "LArContent/larpandoradlcontent/"),
-        ("/pandoramonitoring/", "PandoraMonitoring/"),
-        ("/pandorasdk/", "PandoraSDK/"),
-        ("/larreco/", "LArReco/"),
-        ("/larrecond/", "LArRecoND/"),
-    ]
-
-    for marker, prefix in markers:
-        idx = lower.find(marker)
-        if idx >= 0:
-            suffix = norm[idx + len(marker) :].lstrip("/")
-            if suffix:
-                return f"{prefix}{suffix}"
-            return prefix.rstrip("/")
-
-    return None
+from groups import detect_group, detect_subgroup, get_module_relative_path
 
 
 def has_ingroup(text: str) -> bool:
@@ -99,16 +42,14 @@ def has_file_command(text: str) -> bool:
     return re.search(r"(?:\\|@)file\b", text) is not None
 
 
-def update_file_block(text: str, group: str, file_label: str, add_ingroup: bool) -> str | None:
+def update_file_block(text: str, group: str, file_label: str) -> str | None:
     """
-    Normalize the first \\file/@file block and optionally add \\ingroup.
+    Normalize the first \\file/@file block and enforce \\ingroup.
 
     Args:
         text: The content of a Doxygen input file as a string.
         group: The group name to insert.
         file_label: The label/path to use for the \\file command.
-        add_ingroup: Whether to add an \\ingroup line.
-
     Returns:
         The updated text, or None if no file block is found.
     """
@@ -122,11 +63,15 @@ def update_file_block(text: str, group: str, file_label: str, add_ingroup: bool)
     file_cmd_pattern = re.compile(r"((?:\\|@)file)\b[^\n\r]*")
     updated_block = file_cmd_pattern.sub(rf"\1 {file_label}", block, count=1)
 
-    if add_ingroup:
-        if "\n *" in updated_block:
-            updated_block = updated_block.replace("\n */", f"\n * \\ingroup {group}\n */", 1)
-        else:
-            updated_block = updated_block.replace("*/", f" \\ingroup {group} */", 1)
+    ingroup_pattern = re.compile(r"((?:\\|@)ingroup)\s+\w+")
+    if ingroup_pattern.search(updated_block):
+        updated_block = ingroup_pattern.sub(rf"\1 {group}", updated_block, count=1)
+    elif "\n *" in updated_block:
+        updated_block = updated_block.replace(
+            "\n */", f"\n * \\ingroup {group}\n */", 1
+        )
+    else:
+        updated_block = updated_block.replace("*/", f" \\ingroup {group} */", 1)
 
     return text[: match.start()] + updated_block + text[match.end() :]
 
@@ -145,16 +90,20 @@ def main() -> int:
 
     abs_input = os.path.abspath(input_file)
     group = detect_group(abs_input)
-    file_label = module_relative_path(abs_input)
+    subgroup = detect_subgroup(abs_input)
+    file_label = get_module_relative_path(abs_input)
 
     if not group:
         sys.stdout.write(original)
         return 0
 
+    target_group = subgroup if subgroup else group
     needs_ingroup = not has_ingroup(original)
 
     if has_file_command(original):
-        updated = update_file_block(original, group, file_label or os.path.basename(input_file), needs_ingroup)
+        updated = update_file_block(
+            original, target_group, file_label or os.path.basename(input_file)
+        )
         if updated is not None:
             sys.stdout.write(updated)
             return 0
@@ -168,7 +117,7 @@ def main() -> int:
         [
             "/**\n",
             f" * \\file {file_label or os.path.basename(input_file)}\n",
-            f" * \\ingroup {group}\n",
+            f" * \\ingroup {target_group}\n",
             " */\n",
         ]
     )
