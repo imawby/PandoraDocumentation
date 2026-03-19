@@ -1,5 +1,6 @@
 # Ignore build artifacts
 doxygen/html/
+doxygen/ModuleGroups.dox
 docs/build/
 site/
 
