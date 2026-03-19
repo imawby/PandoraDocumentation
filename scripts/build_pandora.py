@@ -226,13 +226,6 @@ def parse_args() -> argparse.Namespace:
         default=False,
     )
     parser.add_argument(
-        "-D",
-        "--build_libtorch",
-        action="store_true",
-        help="Build LibTorch from source.",
-        default=False,
-    )
-    parser.add_argument(
         "-I",
         "--prebuilt_libtorch",
         help="Path to a pre-built LibTorch folder",
@@ -303,26 +296,6 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def patch_file(file_path, search_str, replace_str) -> None:
-    with open(file_path, "r") as file:
-        lines = file.readlines()
-
-    new_lines = lines.copy()
-
-    for i, line in enumerate(lines):
-        if search_str == line.strip():
-            info(f"Found {search_str} in {file_path}, patching...")
-            new_lines[i] = replace_str + "\n"
-
-    if new_lines == lines:
-        warn(f"Did not find {search_str} in {file_path}, skipping patching...")
-        warn("Please check the file for any issues...")
-    else:
-        with open(file_path, "w") as file:
-            file.writelines(new_lines)
-            info(f"Patched {file_path}...")
-
-
 def clone_command(repo: str, git_flags: str = "") -> list[str]:
     command = ["git", "clone", repo]
     if git_flags:
@@ -371,15 +344,8 @@ def get_code(args) -> None:
     )
 
     # Work out if we need to get some form of LibTorch...
-    # We can either build it, download it or use a pre-built version.
-    if args.build_libtorch:
-        clone_repo(
-            args,
-            "pytorch",
-            clone_command(TORCH, f"--recurse-submodules -b {LIBTORCH_VERSION}"),
-            cwd=args.output,
-        )
-    elif args.download_libtorch:
+    # We can either download it or use a pre-built version.
+    if args.download_libtorch:
         clone_repo(
             args,
             "libtorch",
@@ -456,112 +422,6 @@ def build_repo(
         Debug.Error,
         cwd=build_dir,
     )
-
-
-def build_libtorch(args) -> None:
-    info_banner("Building LibTorch...")
-
-    # First, check the git repo is on the correct branch
-    git_tags = subprocess.run(
-        f"git -C {args.output}/pytorch describe --tags",
-        shell=True,
-        check=True,
-        capture_output=True,
-    )
-
-    if git_tags.stdout.strip().decode("utf-8") == LIBTORCH_VERSION:
-        info("PyTorch is on the correct version...")
-    else:
-        run_command(
-            args,
-            f"git -C {args.output}/pytorch checkout {LIBTORCH_VERSION}",
-            "Checking out the correct version of PyTorch...",
-            "Failed to checkout the correct version of PyTorch",
-            Debug.Error,
-        )
-
-        # And update the submodules
-        run_command(
-            args,
-            f"git -C {args.output}/pytorch submodule update --init --recursive",
-            "Updating the submodules...",
-            "Failed to update the submodules",
-            Debug.Error,
-        )
-
-    venv_folder = f"{args.output}/pytorch_venv"
-    python_bin = f"{venv_folder}/bin/python"
-
-    if os.path.exists(venv_folder):
-        info("Virtual environment already exists...")
-    else:
-        run_command(
-            args,
-            f"python3 -m venv {venv_folder}",
-            "Creating a virtual environment for PyTorch...",
-            "Failed to create a virtual environment for PyTorch",
-            Debug.Error,
-        )
-
-        # Check the requirements.txt file...
-        # numpy 2.0 and higher deprecated a bunch of things,
-        # and older versions of PyTorch did not pin numpy to a version.
-        #
-        # So, lets check the version of numpy in the requirements.txt file
-        # and replace it with a version that works with the PyTorch version we are using.
-        requirements_file = f"{args.output}/pytorch/requirements.txt"
-        patch_file(
-            f"{args.output}/pytorch/requirements.txt",
-            "numpy",
-            "numpy==1.26.4",
-        )
-
-        # Now we can install the requirements
-        run_command(
-            args,
-            f"{python_bin} -m pip install -r {requirements_file}",
-            "Setting up Python Venv...",
-            "Failed to setup PyTorch Python Venv",
-            Debug.Error,
-        )
-
-    # Finally, we can now build PyTorch
-    if os.path.exists(f"{args.output}/libtorch-build"):
-        info("LibTorch already exists, skipping...")
-        return
-
-    libtorch_build = f"{args.output}/libtorch-build"
-    os.makedirs(libtorch_build, exist_ok=True)
-    libtorch_install = f"{args.output}/libtorch-install"
-    os.makedirs(libtorch_install, exist_ok=True)
-
-    info("Setting up LibTorch CMake config...")
-    libtorch_cmake_flags = "-DBUILD_SHARED_LIBS=ON"
-    libtorch_cmake_flags += " -DCMAKE_BUILD_TYPE=Release"
-    libtorch_cmake_flags += f" -DCMAKE_INSTALL_PREFIX={libtorch_install}"
-    libtorch_cmake_flags += f" -DPYTHON_EXECUTABLE={python_bin}"
-    libtorch_cmake_flags += f" -DCMAKE_CXX_STANDARD={CXX_STANDARD}"
-    libtorch_cmake_flags += f" {BUILD_GEN}"
-
-    run_command(
-        args,
-        f"cd {libtorch_build} && cmake {libtorch_cmake_flags} ../pytorch",
-        "Configuring LibTorch...",
-        "Failed to configure LibTorch",
-        Debug.Error,
-    )
-
-    run_command(
-        args,
-        f"cmake --build {libtorch_build} --target install",
-        "Building LibTorch...",
-        "Failed to build LibTorch",
-        Debug.Error,
-    )
-
-    info_banner("LibTorch build complete...")
-
-    return
 
 
 def prepare_archives(args) -> None:
@@ -674,12 +534,7 @@ def apply_dl_flags(
 ) -> tuple[str, str, dict[str, str]]:
     """Append deep-learning related CMake flags when requested."""
     sparse_commands: dict[str, str] = {}
-    use_dl = (
-        args.download_libtorch
-        or args.build_libtorch
-        or args.prebuilt_libtorch
-        or args.larsoft_libtorch
-    )
+    use_dl = args.download_libtorch or args.prebuilt_libtorch or args.larsoft_libtorch
 
     if not use_dl:
         return lar_content_build_flags, lar_reco_build_flags, sparse_commands
@@ -689,8 +544,6 @@ def apply_dl_flags(
         torch_dir = f"{args.output}/libtorch"
     elif args.prebuilt_libtorch:
         torch_dir = f"{args.prebuilt_libtorch}"
-    elif args.build_libtorch:
-        torch_dir = f"{args.output}/libtorch-install"
 
     sparse_dir = ""
     scatter_dir = ""
@@ -749,17 +602,6 @@ def build_sparse_dependencies(args, sparse_commands: dict[str, str]) -> None:
     """Build sparse dependencies when requested by flags."""
     if not args.sparse_support:
         return
-
-    patch_file(
-        f"{args.output}/pytorch_sparse/CMakeLists.txt",
-        "set(CMAKE_CXX_STANDARD 14)",
-        f"set(CMAKE_CXX_STANDARD {CXX_STANDARD})",
-    )
-    patch_file(
-        f"{args.output}/pytorch_cluster/CMakeLists.txt",
-        "set(CMAKE_CXX_STANDARD 14)",
-        f"set(CMAKE_CXX_STANDARD {CXX_STANDARD})",
-    )
 
     build_repo(args, "pytorch_sparse", sparse_commands["pytorch_sparse"])
     build_repo(args, "pytorch_scatter", sparse_commands["pytorch_scatter"])
@@ -820,10 +662,6 @@ def build_code(args) -> None:
             "PandoraMonitoring",
             f"cmake {root_cmake_module_path} {pandora_sdk} {BUILD_GEN} ..",
         )
-
-    # Before moving to the optional DL libraries...
-    if args.build_libtorch:
-        build_libtorch(args)
 
     build_sparse_dependencies(args, sparse_commands)
 
