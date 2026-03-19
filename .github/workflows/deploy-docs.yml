@@ -38,6 +38,11 @@ jobs:
       - name: Build User Docs
         run: uv run sphinx-build -b html docs/source site
 
+      - name: Setup Doxygen configuration
+        run: |
+          # Build the ModuleGroups.dox file.
+          python3 doxygen/make_groups.py
+
       - name: Build Doxygen
         working-directory: doxygen
         run: doxygen Doxyfile
