@@ -1,0 +1,57 @@
+name: Build Pandora
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/build_pandora.py
+      - .github/workflows/build-script-ci.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/build_pandora.py
+      - .github/workflows/build-script-ci.yml
+  workflow_dispatch:
+
+jobs:
+  full-build-linux:
+    name: Full Build (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Install compiler and required tools
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            ninja-build \
+            git \
+            curl \
+            python3 \
+            tar
+
+      - name: Verify toolchain
+        run: |
+          set -euxo pipefail
+          gcc --version
+          g++ --version
+          cmake --version
+          ninja --version
+          git --version
+          curl --version
+          python3 --version
+          tar --version
+
+      - name: Run full build script
+        run: |
+          set -euxo pipefail
+          OUT_DIR="$RUNNER_TEMP/pandora-full-build"
+          rm -rf "$OUT_DIR"
+          mkdir -p "$OUT_DIR"
+          python3 scripts/build_pandora.py -o "$OUT_DIR"
