@@ -1,0 +1,10 @@
+[project]
+name = "PandoraDocumentation"
+version = "0.0.1"
+description = "Documentation for the Pandora Software Development Kit (SDK) and related tools."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "sphinx>=7.1,<8",
+    "sphinx-rtd-theme>=2,<3",
+]
