@@ -25,9 +25,9 @@ jobs:
           - name: Linux Build
             os: ubuntu-latest
             timeout: 240
-          - name: macOS Build
-            os: macos-latest
-            timeout: 240
+          # - name: macOS Build
+          #   os: macos-latest
+          #   timeout: 240
 
     env:
       ML_CACHE_PREFIX: pandora-ml-data
