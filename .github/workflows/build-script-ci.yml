@@ -48,7 +48,10 @@ jobs:
             git \
             curl \
             python3 \
-            tar
+            tar \
+            xlibmesa-glu-dev \
+            libvdt-dev \
+            libtbb-dev
           wget https://root.cern/download/root_v6.28.12.Linux-ubuntu22-x86_64-gcc11.4.tar.gz
           tar -xzvf root_v6.28.12.Linux-ubuntu22-x86_64-gcc11.4.tar.gz
 
@@ -62,6 +65,7 @@ jobs:
           if ! command -v ninja >/dev/null 2>&1; then
             brew install ninja
           fi
+          brew install tbb
           wget https://root.cern/download/root_v6.40.00.macos-15.7-arm64-clang170.tar.gz
           tar -xzvf root_v6.40.00.macos-15.7-arm64-clang170.tar.gz
 
