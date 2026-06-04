@@ -60,4 +60,4 @@ Thesis Highlights
    :caption: Development
    :hidden:
 
-   Doxygen API Reference <https://crossr.github.io/PandoraDocumentation/dev/>
+   Doxygen API Reference <https://imawby.github.io/PandoraDocumentation/dev/>
