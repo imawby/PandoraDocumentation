@@ -55,10 +55,7 @@ if platform.system() == "Darwin" and platform.processor() == "arm":
 elif platform.system() == "Darwin":
     PRE_BUILT_LIBTORCH = MAC_URL
 
-# Get the correct install path...
-# gcc installs to build/install/lib64/..., but clang installs to build/install/lib/...
-# Pick the most appropriate one based on the platform...but alert the user to check if it is correct.
-LIB_INSTALL_PATH = "lib64" if platform.system() == "Linux" else "lib"
+LIB_INSTALL_PATH = "lib"
 
 # The list of required packages for the build
 REQUIRED_PACKAGES = [
