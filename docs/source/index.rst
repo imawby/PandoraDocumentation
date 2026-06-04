@@ -6,7 +6,7 @@
 Welcome to Pandora!
 ===================
 
-The high energy physics pattern recognition software. 
+The high energy physics pattern recognition software.
 
 Our code can be found on github at `PandoraPFA <https://github.com/PandoraPFA>`_.
 
@@ -36,13 +36,14 @@ Thesis Highlights
 - `Daniel Heuchel, Particle Flow Studies with Highly Granular Calorimeter Data, 2022 <https://archiv.ub.uni-heidelberg.de/volltextserver/31794/>`_
 - `Andrew Smith, Measurement of the muon-neutrino charged-current single charged-pion cross-section on argon with the MicroBooNE detector, 2021 <https://www.repository.cam.ac.uk/items/48104fd4-f393-4d65-8330-2aec7f470fb5>`_
 - `Jack Weston, Neutrino interaction vertex reconstruction and particle identification in the MicroBooNE detector, 2021 <https://www.repository.cam.ac.uk/items/32b3c274-4ab8-4257-aa89-252fc4d5925d>`_
-- `Dominic Barker, Developments Towards a νe CC Sterile Appearance Sensitivity in the Short-Baseline Neutrino Programme, 2020 <https://etheses.whiterose.ac.uk/id/eprint/29009/>`_  
+- `Dominic Barker, Developments Towards a νe CC Sterile Appearance Sensitivity in the Short-Baseline Neutrino Programme, 2020 <https://etheses.whiterose.ac.uk/id/eprint/29009/>`_
 - `Joris de Vries, Identifying Muon Neutrino Charged-Current Interactions in the MicroBooNE Detector, 2019 <https://www.repository.cam.ac.uk/items/8c8025db-d120-45b6-ae60-dd5d6998208a>`_
 - `Steven Green, Calorimetry at a Future Linear Collider, 2017 <https://inspirehep.net/literature/1652808>`_
 - `Boruo Xu, Detectors and Physics at a Future Linear Collider, 2017 <https://www.repository.cam.ac.uk/items/50b51573-5c44-456a-96d2-5d4a1e60ddd5>`_
 
 .. toctree::
    :maxdepth: 1
+   :hidden:
 
    WhatIsPandora
    RecentDevelopments
@@ -53,11 +54,10 @@ Thesis Highlights
    PandoraND
    PandoraMetrics
    Tutorial
-..
 
 .. toctree::
    :maxdepth: 1
    :caption: Development
+   :hidden:
 
    Doxygen API Reference <https://crossr.github.io/PandoraDocumentation/dev/>
-..
