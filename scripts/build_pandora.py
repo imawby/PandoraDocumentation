@@ -55,6 +55,11 @@ if platform.system() == "Darwin" and platform.processor() == "arm":
 elif platform.system() == "Darwin":
     PRE_BUILT_LIBTORCH = MAC_URL
 
+# Get the correct install path...
+# gcc installs to build/install/lib64/..., but clang installs to build/install/lib/...
+# Pick the most appropriate one based on the platform...but alert the user to check if it is correct.
+LIB_INSTALL_PATH = "lib64" if platform.system() == "Linux" else "lib"
+
 # The list of required packages for the build
 REQUIRED_PACKAGES = [
     ("cmake", ["cmake", "--version"]),
@@ -397,12 +402,12 @@ def build_common_flags(args) -> dict[str, str]:
         f"-DCMAKE_CXX_STANDARD={CXX_STANDARD}"
     )
     pandora_sdk = (
-        f"-DPandoraSDK_DIR={args.output}/PandoraSDK/build/install/lib/cmake/PandoraSDK"
+        f"-DPandoraSDK_DIR={args.output}/PandoraSDK/build/install/{LIB_INSTALL_PATH}/cmake/PandoraSDK"
     )
-    pandora_monitoring = f"-DPANDORA_MONITORING=ON -DPandoraMonitoring_DIR={args.output}/PandoraMonitoring/build/install/lib/cmake/PandoraMonitoring"
+    pandora_monitoring = f"-DPANDORA_MONITORING=ON -DPandoraMonitoring_DIR={args.output}/PandoraMonitoring/build/install/{LIB_INSTALL_PATH}/cmake/PandoraMonitoring"
     eigen_flag = f"-DEigen3_DIR={args.output}/Eigen3/share/eigen3/cmake/"
     larcontent_flag = (
-        f"-DLArContent_DIR={args.output}/LArContent/build/install/lib/cmake/LArContent"
+        f"-DLArContent_DIR={args.output}/LArContent/build/install/{LIB_INSTALL_PATH}/cmake/LArContent"
     )
     cmake_prefix_torch = ""
     if args.download_libtorch:
@@ -462,7 +467,7 @@ def build_code(args) -> None:
     cmake_prefix_torch = common_flags["cmake_prefix_torch"]
 
     libtorch_flag = "-DPANDORA_LIBTORCH=ON"
-    dl_content_flag = f"-DLArDLContent_DIR={args.output}/LArContent/build/install/lib/cmake/LArDLContent"
+    dl_content_flag = f"-DLArDLContent_DIR={args.output}/LArContent/build/install/{LIB_INSTALL_PATH}/cmake/LArDLContent"
     lar_content_build_flags = f"{root_cmake_module_path} {pandora_sdk} {pandora_monitoring} {eigen_flag} {libtorch_flag} {cmake_prefix_torch}".strip()
     lar_reco_build_flags = f"{root_cmake_module_path} {pandora_sdk} {pandora_monitoring} {larcontent_flag} {libtorch_flag} {cmake_prefix_torch} {dl_content_flag}".strip()
 
